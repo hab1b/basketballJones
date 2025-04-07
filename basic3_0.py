@@ -30,12 +30,6 @@ def get_roster(team_id, season):
     df = commonteamroster.CommonTeamRoster(team_id=team_id, season=season).get_data_frames()[0]
     return df['PLAYER'].tolist()
 
-def get_full_season_log(player_id, season):
-    """Concatenate regular season + playoffs"""
-    reg = playergamelog.PlayerGameLog(player_id=player_id, season=season, season_type_all_star="Regular Season").get_data_frames()[0]
-    playoffs = playergamelog.PlayerGameLog(player_id=player_id, season=season, season_type_all_star="Playoffs").get_data_frames()[0]
-    return pd.concat([reg, playoffs], ignore_index=True)
-
 # === INPUTS ===
 selected_team = st.selectbox("Select Team", team_names, index=team_names.index("Boston Celtics"))
 team_id = get_team_id(selected_team)
@@ -53,27 +47,20 @@ if st.button("Run Analysis"):
 
         all_games = pd.DataFrame()
         for season in seasons:
-            full_log = get_full_season_log(player_id, season)
-            vs_team = full_log[full_log['MATCHUP'].str.contains(opp_abbr)]
+            log = playergamelog.PlayerGameLog(player_id=player_id, season=season).get_data_frames()[0]
+            vs_team = log[log['MATCHUP'].str.contains(opp_abbr)]
             all_games = pd.concat([all_games, vs_team])
             if len(all_games) >= num_games:
                 break
-            time.sleep(0.6)
+            time.sleep(0.6)  # Respect rate limit
 
-        # Fix: parse dates properly before sorting
-        all_games["GAME_DATE"] = pd.to_datetime(all_games["GAME_DATE"])
-        all_games = all_games.sort_values("GAME_DATE", ascending=False).head(num_games)
-        all_games["GAME_DATE"] = all_games["GAME_DATE"].dt.strftime("%b %d, %Y")
-
+        all_games = all_games.head(num_games)
         st.subheader(f"📊 {player_name}'s Last {len(all_games)} Games vs {opponent_team}")
         st.dataframe(all_games[["SEASON_ID", "GAME_DATE", "MATCHUP"] + stat_targets])
 
-        # Also show recent games overall (with playoffs)
-        full_recent = get_full_season_log(player_id, seasons[0])
-        full_recent["GAME_DATE"] = pd.to_datetime(full_recent["GAME_DATE"])
-        full_recent = full_recent.sort_values("GAME_DATE", ascending=False)
-        overall_stats = full_recent.head(num_games)[["GAME_DATE", "MATCHUP"] + stat_targets]
-        overall_stats["GAME_DATE"] = overall_stats["GAME_DATE"].dt.strftime("%b %d, %Y")
+        # Also show overall last 10 games
+        log_recent = playergamelog.PlayerGameLog(player_id=player_id, season=seasons[0]).get_data_frames()[0]
+        overall_stats = log_recent.head(num_games)[["GAME_DATE", "MATCHUP"] + stat_targets]
 
         st.subheader(f"📈 Last {num_games} Overall Games")
         st.dataframe(overall_stats)
