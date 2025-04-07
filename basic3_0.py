@@ -60,13 +60,20 @@ if st.button("Run Analysis"):
                 break
             time.sleep(0.6)
 
+        # Fix: parse dates properly before sorting
+        all_games["GAME_DATE"] = pd.to_datetime(all_games["GAME_DATE"])
         all_games = all_games.sort_values("GAME_DATE", ascending=False).head(num_games)
+        all_games["GAME_DATE"] = all_games["GAME_DATE"].dt.strftime("%b %d, %Y")
+
         st.subheader(f"📊 {player_name}'s Last {len(all_games)} Games vs {opponent_team}")
         st.dataframe(all_games[["SEASON_ID", "GAME_DATE", "MATCHUP"] + stat_targets])
 
         # Also show recent games overall (with playoffs)
-        full_recent = get_full_season_log(player_id, seasons[0]).sort_values("GAME_DATE", ascending=False)
+        full_recent = get_full_season_log(player_id, seasons[0])
+        full_recent["GAME_DATE"] = pd.to_datetime(full_recent["GAME_DATE"])
+        full_recent = full_recent.sort_values("GAME_DATE", ascending=False)
         overall_stats = full_recent.head(num_games)[["GAME_DATE", "MATCHUP"] + stat_targets]
+        overall_stats["GAME_DATE"] = overall_stats["GAME_DATE"].dt.strftime("%b %d, %Y")
 
         st.subheader(f"📈 Last {num_games} Overall Games")
         st.dataframe(overall_stats)
