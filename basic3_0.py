@@ -46,24 +46,65 @@ if st.button("Run Analysis"):
         player_id = get_player_id(player_name)
 
         all_games = pd.DataFrame()
+        full_game_log = pd.DataFrame()
+
         for season in seasons:
             log = playergamelog.PlayerGameLog(player_id=player_id, season=season).get_data_frames()[0]
+            if full_game_log.empty:
+                full_game_log = log.copy()
+            else:
+                full_game_log = pd.concat([full_game_log, log])
+
             vs_team = log[log['MATCHUP'].str.contains(opp_abbr)]
             all_games = pd.concat([all_games, vs_team])
             if len(all_games) >= num_games:
                 break
-            time.sleep(0.6)  # Respect rate limit
+            time.sleep(0.6)
 
         all_games = all_games.head(num_games)
         st.subheader(f"📊 {player_name}'s Last {len(all_games)} Games vs {opponent_team}")
         st.dataframe(all_games[["SEASON_ID", "GAME_DATE", "MATCHUP"] + stat_targets])
 
         # Also show overall last 10 games
-        log_recent = playergamelog.PlayerGameLog(player_id=player_id, season=seasons[0]).get_data_frames()[0]
+        log_recent = full_game_log.copy()
         overall_stats = log_recent.head(num_games)[["GAME_DATE", "MATCHUP"] + stat_targets]
 
         st.subheader(f"📈 Last {num_games} Overall Games")
         st.dataframe(overall_stats)
+
+        # === BONUS: SUPER BOOST FEATURE ===
+        with st.expander("💥 Bonus: Performance vs Usual Form"):
+            comparisons = []
+            full_game_log = full_game_log.reset_index(drop=True)
+
+            for _, matchup_row in all_games.iterrows():
+                game_id = matchup_row['GAME_ID']
+                idx = full_game_log[full_game_log['GAME_ID'] == game_id].index
+                if len(idx) == 0:
+                    continue
+
+                idx = idx[0]
+                before = full_game_log.iloc[idx+1:idx+4]  # 3 games before
+                after = full_game_log.iloc[max(0, idx-3):idx]  # 3 games after
+
+                entry = {
+                    "GAME_DATE": matchup_row["GAME_DATE"],
+                    "MATCHUP": matchup_row["MATCHUP"]
+                }
+
+                for stat in stat_targets:
+                    match_val = matchup_row[stat]
+                    before_avg = before[stat].astype(float).mean() if not before.empty else None
+                    after_avg = after[stat].astype(float).mean() if not after.empty else None
+                    deviation = match_val - ((before_avg + after_avg) / 2) if before_avg and after_avg else None
+                    entry[f"{stat}_BEFORE3"] = round(before_avg, 1) if before_avg else None
+                    entry[f"{stat}_AFTER3"] = round(after_avg, 1) if after_avg else None
+                    entry[f"{stat}_DEV"] = round(deviation, 1) if deviation else None
+
+                comparisons.append(entry)
+
+            comparison_df = pd.DataFrame(comparisons)
+            st.dataframe(comparison_df)
 
     except Exception as e:
         st.error(f"❌ Something went wrong: {e}")
