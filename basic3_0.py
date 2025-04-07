@@ -5,7 +5,7 @@ import pandas as pd
 import time
 
 st.set_page_config(page_title="NBA Player Matchup Stats", layout="centered")
-st.title("🏀 NBA Player Matchup Analyzer")
+st.title("Little Bucket Book")
 
 # === INPUTS ===
 player_name = st.text_input("Player Name", value="Jayson Tatum")
